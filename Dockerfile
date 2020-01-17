@@ -4,6 +4,7 @@
 FROM openjdk:11-jre-slim as jodconverter-base
 
 ARG LIBREOFFICE_VERSION=6.3.4
+ENV LIBREOFFICE_VERSION ${LIBREOFFICE_VERSION:-}
 ENV TIMEZONE=Europe/Bratislava
 
 # backports would only be needed for stretch
@@ -23,7 +24,7 @@ RUN apt-get update && apt-get -y install \
 RUN mkdir /tmp/libreoffice \
     && curl -L "https://download.documentfoundation.org/libreoffice/stable/${LIBREOFFICE_VERSION}/deb/x86_64/LibreOffice_${LIBREOFFICE_VERSION}_Linux_x86-64_deb.tar.gz" | tar -xz -C /tmp/libreoffice --strip 1 \
     && cd /tmp/libreoffice/DEBS && dpkg -i *.deb \
-    && ln -s /opt/libreoffice6.3 /opt/libreoffice \
+    && ln -s /opt/libreoffice${LIBREOFFICE_VERSION%.*} /opt/libreoffice \
     && rm -rf /tmp/libreoffice /tmp/libreoffice.tar.gz
 
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
