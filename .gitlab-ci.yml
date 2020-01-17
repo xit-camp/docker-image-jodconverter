@@ -5,4 +5,5 @@ build:
   tags:
     - docker
   script:
+   - make build
    - make deploy
