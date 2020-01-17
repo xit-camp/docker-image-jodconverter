@@ -1,20 +1,37 @@
 #  ---------------------------------- setup our needed libreoffice engaged server with newest glibc
 # we cannot use the official image since we then cannot have sid and the glibc fix
 #FROM openjdk:11.0-jre-slim-stretch as jodconverter-base
-FROM debian:sid as jodconverter-base
+FROM openjdk:11-jre-slim as jodconverter-base
+
+ARG LIBREOFFICE_VERSION=6.3.4
+ENV TIMEZONE=Europe/Bratislava
+
 # backports would only be needed for stretch
 #RUN echo "deb http://ftp2.de.debian.org/debian stretch-backports main contrib non-free" > /etc/apt/sources.list.d/debian-backports.list
 RUN apt-get update && apt-get -y install \
-        openjdk-11-jre \
         apt-transport-https locales-all libpng16-16 libxinerama1 libgl1-mesa-glx libfontconfig1 libfreetype6 libxrender1 \
-        libxcb-shm0 libxcb-render0 adduser cpio findutils \
+        libxcb-shm0 libxcb-render0 adduser cpio findutils dbus libglib2.0 libcairo2 libsm6 libcups2 locales tzdata curl \
         # procps needed for us finding the libreoffice process, see https://github.com/sbraconnier/jodconverter/issues/127#issuecomment-463668183
         procps \
     # only for stretch
     #&& apt-get -y install -t stretch-backports libreoffice --no-install-recommends \
     # sid variant
-    && apt-get -y install libreoffice --no-install-recommends \
+    # && apt-get -y install libreoffice --no-install-recommends \
+    && ln -snf /usr/share/zoneinfo/$TIMEZONE /etc/localtime && echo $TIMEZONE > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir /tmp/libreoffice \
+    && curl -L "https://download.documentfoundation.org/libreoffice/stable/${LIBREOFFICE_VERSION}/deb/x86_64/LibreOffice_${LIBREOFFICE_VERSION}_Linux_x86-64_deb.tar.gz" | tar -xz -C /tmp/libreoffice --strip 1 \
+    && cd /tmp/libreoffice/DEBS && dpkg -i *.deb \
+    && ln -s /opt/libreoffice6.3 /opt/libreoffice \
+    && rm -rf /tmp/libreoffice /tmp/libreoffice.tar.gz
+
+RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+    locale-gen
+ENV LANG en_US.UTF-8  
+ENV LANGUAGE en_US:en  
+ENV LC_ALL en_US.UTF-8
+
 ENV JAR_FILE_NAME=app.war
 ENV JAR_FILE_BASEDIR=/opt/app
 ENV LOG_BASE_DIR=/var/log
@@ -31,23 +48,27 @@ CMD ["-Dspring.config.location=/etc/app/application.properties"]
 
 #  ----------------------------------  build our jodconvert builder, so source code with build tools
 # TODO: java11 compat yet not given for jodconverter https://github.com/sbraconnier/jodconverter/pull/128
-FROM openjdk:11-jdk as jodconverter-builder
+FROM openjdk:11-jdk-slim as jodconverter-builder
+
+ARG JOD_VERSION=4.2.4
+
 RUN apt-get update \
   && apt-get -y install git \
   && git clone https://github.com/sbraconnier/jodconverter /tmp/jodconverter \
+  && cd /tmp/jodconverter && git checkout -b v${JOD_VERSION} tags/v${JOD_VERSION} \
   && mkdir /dist
 
 #  ---------------------------------- gui builder
 FROM jodconverter-builder as jodconverter-gui
 WORKDIR /tmp/jodconverter/jodconverter-samples/jodconverter-sample-spring-boot
-RUN ../../gradlew build \
+RUN ../../gradlew build --no-daemon -PuseLibreOffice \
   && cp build/libs/*SNAPSHOT.war /dist/jodconverter-gui.war
 
 
 #  ----------------------------------  rest build
 FROM jodconverter-builder as jodconverter-rest
 WORKDIR /tmp/jodconverter/jodconverter-samples/jodconverter-sample-rest
-RUN ../../gradlew build \
+RUN ../../gradlew build --no-daemon -PuseLibreOffice \
   && cp build/libs/*SNAPSHOT.jar /dist/jodconverter-rest.jar
 
 

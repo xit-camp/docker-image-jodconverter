@@ -1,0 +1,8 @@
+services:
+    - docker:dind
+  
+  build:
+    tags:
+      - docker
+    script:
+     - make deploy

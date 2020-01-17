@@ -1,18 +1,23 @@
-build:
-	docker build --target jodconverter-base . -t eugenmayer/jodconverter:base
-	docker build --target gui . -t eugenmayer/jodconverter:gui
-	docker build --target rest . -t eugenmayer/jodconverter:rest
+.DEFAULT_GOAL := build
+.PHONY: build deploy
 
-push:
-	docker push eugenmayer/jodconverter:base
-	docker push eugenmayer/jodconverter:gui
-	docker push eugenmayer/jodconverter:rest
+VERSION := $(shell sed -n -e 's/^.\+JOD_VERSION\s*=\s*\(.\+\)/\1/p' < Dockerfile)
+
+build:
+	docker build --target jodconverter-base . -t docker.xit.camp/library/jodconverter-base:${VERSION}
+	docker build --target gui . -t docker.xit.camp/library/jodconverter-gui:${VERSION}
+	docker build --target rest . -t docker.xit.camp/library/jodconverter-rest:${VERSION}
+
+deploy:
+	docker push docker.xit.camp/library/jodconverter-base:${VERSION}
+	docker push docker.xit.camp/library/jodconverter-gui:${VERSION}
+	docker push docker.xit.camp/library/jodconverter-rest:${VERSION}
 
 start-gui: stop
-	docker run --name jodconverter-spring -m 512m --rm -p 8080:8080 eugenmayer/jodconverter:gui
+	docker run --name jodconverter-spring -m 512m --rm -p 8080:8080 docker.xit.camp/library/jodconverter-gui:${VERSION}
 
 start-rest: stop
-	docker run --name jodconverter-rest -m 512m --rm -p 8080:8080 eugenmayer/jodconverter:rest
+	docker run --name jodconverter-rest -m 512m --rm -p 8080:8080 docker.xit.camp/library/jodconverter-rest:${VERSION}
 
 stop:
 	docker stop --name jodconverter-rest > /dev/null 2>&1 || true
